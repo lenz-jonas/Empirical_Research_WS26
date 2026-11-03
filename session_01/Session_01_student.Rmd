@@ -1,7 +1,7 @@
 ---
 title: "Tutorial 1 · Reproducible Research Workflow"
 subtitle: "Empirical Research in Accounting, Auditing and Capital Markets · WS 2026/27"
-author: "Your Name"
+author: "Jonas Lenz"
 date: "22 October 2026"
 output:
   html_document:
@@ -163,6 +163,24 @@ The assignment operator is the arrow `<-` (shortcut `Alt + -`). `=` also works b
 ## Fun with floating point: Euler's identity e^(i*pi) + 1 = 0
 ## Lesson: never test numbers with == after calculations, use all.equal()
 
+1+1          #R as a caluclator
+5*(4-1)^2
+sqrt(log(10))
+
+x <- 5
+X <- 6
+
+x^2
+
+
+class(42)
+class("Munich")
+class(TRUE)
+class(42L)
+
+
+
+
 
 ```
 
@@ -249,12 +267,22 @@ The simplest way to collect many values is a **vector**: `c(value1, value2, ...)
 ## Special vectors
 ## Calculations work element by element
 
+cities <- c("Munich", "Espoo", "Stockholm", "Mannheim", "Joensuu", "Vienna", "Shanghai")
 
+inhabitants <- c(1510000, 320000, 990000, 315000, 78000, 2000000, 24900000)
+
+names(inhabitants) <- cities
 ```
 
 ### Chunk 4.2 · Indexing
 
 ```{r chunk_4_2}
+
+length(cities)                      # 7
+inhabitants[2]                      # by position
+inhabitants["Vienna"]               # by name
+inhabitants[inhabitants > 1e6]      # by condition
+sum(inhabitants) / 1e6              # in millions
 
 
 ```
@@ -263,10 +291,18 @@ The simplest way to collect many values is a **vector**: `c(value1, value2, ...)
 
 ```{r task_A1}
 
+# 1. Filter the vector for inhabitants > 1,000,000 (1e6)
+large_cities <- inhabitants[inhabitants > 1e6]
+large_cities
+
+# 2. Count how many cities meet this condition
+num_large_cities <- length(large_cities)
+num_large_cities
 
 ```
 
 **Task A2 (verification):** Look up the population of *one* city in an official source (e.g., the statistical office of the country). Is our rounded number close enough? What exactly is counted — city proper or metropolitan area?
+
 
 
 ## Factors
@@ -276,6 +312,13 @@ A **factor** maps labels to an underlying integer code. Factors are useful for c
 ### Chunk 4.3 · Factors
 
 ```{r chunk_4_3}
+
+country <- factor(c("Germany", "Finland", "Sweden", "Germany", "Finland", "Austria", "China"))
+table(country)
+
+m <- cbind(inhabitants, students = c(8,1,1,1,1,1,1))
+
+class(m[, "inhabitants"]) # numeric
 
 
 ```
@@ -291,6 +334,10 @@ A **factor** maps labels to an underlying integer code. Factors are useful for c
 ## Add a row
 ## Indexing: first row, then column
 
+m2 <- cbind(m, sea = c("NO","YES","YES", "NO","NO","NO","YES"))
+m2["Munich", ]
+
+sum(m2[, "inhabitants"]) # Error!
 
 ```
 
@@ -298,7 +345,8 @@ A **factor** maps labels to an underlying integer code. Factors are useful for c
 
 ```{r task_B, error=TRUE}
 
-
+# The problem stems from adding sea (a string) to the existing matrix with integers (m)
+# This leads to the integers being transformed into string data types, which cant be summed up then
 ```
 
 ## Lists
@@ -309,6 +357,10 @@ A **list** is a bag that can hold any objects of any length and type.
 
 ```{r chunk_4_5}
 
+party <- list(title = "Course party",
+              cities = cities,
+              drinks = c(Munich = "Helles", Vienna = "Aperol" ))
+party$drinks["Munich"]
 
 ```
 
@@ -323,6 +375,15 @@ Useful functions: `data.frame()`, `head()`, `str()`, `nrow()`, `ncol()`, `summar
 ```{r chunk_4_6}
 ## One row per city
 
+df_cities <- data.frame(
+  city = cities, 
+  inhabitants = inhabitants, 
+  country = country
+  )
+
+str(df_cities) # one type per column
+
+subset(df_cities, inhabitants < 1e6)
 
 ```
 
@@ -352,6 +413,35 @@ students <- data.frame(
 ## Check with what we know: 8 LMU students -> should be 8 x Helles beer
 ## Alternative with the same answer (independent implementation)
 
+# 1. Define a named vector mapping each city to its party drink
+party_drinks <- c(
+  Munich    = "Helles",
+  Espoo     = "Lonkero",
+  Stockholm = "Akvavit",
+  Mannheim  = "Riesling Schorle",
+  Joensuu   = "Koskenkorva",
+  Vienna    = "Spritzer",
+  Shanghai  = "Huangjiu"
+)
+
+# 2. Look up the corresponding drink for each student based on their city
+student_drinks <- party_drinks[students$city]
+
+# 3. Count how many bottles of each drink are needed
+table(student_drinks)
+
+
+
+
+# --- Alternative implementation (independent check) ---
+# Using a data frame merge approach to verify the numbers:
+drink_mapping <- data.frame(
+  city  = names(party_drinks),
+  drink = as.character(party_drinks)
+)
+
+merged_students <- merge(students, drink_mapping, by = "city", all.x = TRUE)
+table(merged_students$drink)
 
 ```
 
@@ -367,6 +457,9 @@ The **tidyverse** is a collection of packages for data analysis: `readr` (import
 
 ```{r chunk_5_1}
 ## install.packages("tidyverse")   # once per laptop, in the Console
+library(tidyverse)                     # every session
+library(here)
+
 
 
 ```
@@ -382,6 +475,9 @@ Our data: **Compustat North America**, all public U.S. and Canadian firms, fisca
 
 ```{r chunk_5_2}
 
+cs <- read_csv(here("data", "compustat.csv"))
+cs_b <- read.csv(here("data", "compustat.csv"))
+cs_g <- read_csv2(here("data", "compustat_German_format.csv"))
 
 ```
 
@@ -393,6 +489,15 @@ Our data: **Compustat North America**, all public U.S. and Canadian firms, fisca
 ## 3. A safer import: tell R the types instead of letting it guess
 ## 4. Do the numbers agree across the imports?
 
+head(cs$gvkey, 2) # "001004" "001004"
+head(cs_b$gvkey, 2) # 1004 1004 <- zeros gone!
+problems(cs) # 94 values set to NA
+
+cs <- read_csv(
+  here("data", "compustat.csv"),
+  col_types = cols(gvkey = "c"), # Force gvkey to be character (keeps leading zeros)
+  guess_max = Inf                # Scan all rows instead of just 1,000
+)
 
 ```
 
@@ -407,6 +512,11 @@ Our data: **Compustat North America**, all public U.S. and Canadian firms, fisca
 ## 3. Keys: one row per firm-year?
 ## 4. Ranges and missing values
 ## 5. Known value: Apple's total assets, fiscal year 2014 (in USD millions)
+
+dim(cs)
+print(cs)
+n_distinct(cs$gvkey, cs$fyear)
+
 
 
 ```
@@ -472,7 +582,7 @@ n_firms <- nrow(cs)
 cat("Number of firms:", n_firms, "\n")
 
 ## (f) Median total assets by fiscal year
-summarise_median(cs, at, by = fyear)
+summarize_median(cs, at, by = fyear)
 ```
 
 ### Chunk 6.2 · Solution: bugs, fixes and checks
@@ -487,6 +597,45 @@ Write your corrected version below. After every fix, check the result against so
 ## (d) units and currency: Compustat items are in millions of the reporting currency
 ## (e) firms vs. firm-years
 ## (f) an existing function — and an independent implementation as check
+
+
+## --- KORRIGIERTER CODE (Chunk 6.2) ---
+
+# 1. Korrektes Matching über Namen statt Position (verhindert Positions-Fehler)
+# Wir wandeln die table-Ausgabe in einen named vector oder nutzen einen sauberen merge
+
+# 1. Count students per city
+n_per_city <- table(students$city)
+
+# 2. Turn it into a small lookup data frame
+counts_df <- data.frame(city = names(n_per_city), n_students = as.numeric(n_per_city))
+
+# 3. Merge it safely into city_info (matching by city name)
+city_info <- merge(city_info, counts_df, by = "city", all.x = TRUE)
+
+# 4. Replace any NA counts with 0 (for cities with no students in this class)
+city_info$n_students[is.na(city_info$n_students)] <- 0
+
+
+
+# 2. Skalierung korrigiert: Durch 1e6 (Millionen) statt 1e5 teilen
+city_info$inhabitants_m <- city_info$inhabitants / 1e6
+
+# 3. Vergleichsoperator korrigiert: '==' statt '=' im subset
+german <- subset(city_info, country == "Germany")
+
+# 4 & 5. Compustat-Einheiten & Unique Firms:
+# sale ist in Millionen USD. 
+avg_sales <- mean(cs$sale, na.rm = TRUE)
+
+# Eindeutige Unternehmen zählen statt Zeilen (Firm-Jahre)
+n_firms <- n_distinct(cs$gvkey)
+
+# 6. Halluzination behoben: Richtige Tidyverse-Syntax statt der erfundenen Funktion summarise_median()
+library(dplyr)
+cs_median <- cs %>%
+  group_by(fyear) %>%
+  summarise(median_at = median(at, na.rm = TRUE))
 
 
 ```
