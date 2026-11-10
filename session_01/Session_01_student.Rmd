@@ -337,7 +337,7 @@ class(m[, "inhabitants"]) # numeric
 m2 <- cbind(m, sea = c("NO","YES","YES", "NO","NO","NO","YES"))
 m2["Munich", ]
 
-sum(m2[, "inhabitants"]) # Error!
+# sum(m2[, "inhabitants"]) # Error!
 
 ```
 
@@ -357,10 +357,20 @@ A **list** is a bag that can hold any objects of any length and type.
 
 ```{r chunk_4_5}
 
-party <- list(title = "Course party",
+party <- list(title = "Empirical Research course party",
               cities = cities,
-              drinks = c(Munich = "Helles", Vienna = "Aperol" ))
-party$drinks["Munich"]
+              drinks = c(Munich = "Helles",
+                         Espoo = "Lonkero",
+                         Stockholm = "Akvavit",
+                         Mannheim = "Riesling Schorle",
+                         Joensuu = "Koskenkorva",
+                         Vienna = "Spritzer",
+                         Shanghai = "Huangjiu")
+)
+              
+              
+names(party)
+party$drinks
 
 ```
 
@@ -378,12 +388,19 @@ Useful functions: `data.frame()`, `head()`, `str()`, `nrow()`, `ncol()`, `summar
 df_cities <- data.frame(
   city = cities, 
   inhabitants = inhabitants, 
-  country = country
+  country = country,
+  sea = c(FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, TRUE),
+  drink = unname(party$drinks),
+  row.names = NULL
   )
 
-str(df_cities) # one type per column
+
+df_cities
+str(df_cities)
+sum(df_cities$inhabitants)
 
 subset(df_cities, inhabitants < 1e6)
+subset(df_cities, sea)
 
 ```
 
@@ -402,8 +419,9 @@ students <- data.frame(
 
 ```{r chunk_4_6b}
 ## Explore the students data
-
-
+head(students)
+nrow(students)
+table(students$city)
 ```
 
 **Task C · Party planning:** Every student brings the drink of their (home) city. How many bottles of each drink do we need? Check your result against what you know about the class.
@@ -435,14 +453,8 @@ table(student_drinks)
 
 # --- Alternative implementation (independent check) ---
 # Using a data frame merge approach to verify the numbers:
-drink_mapping <- data.frame(
-  city  = names(party_drinks),
-  drink = as.character(party_drinks)
-)
-
-merged_students <- merge(students, drink_mapping, by = "city", all.x = TRUE)
-table(merged_students$drink)
-
+students$drink <- df_cities$drink[match(students$city, df_cities$city)]
+students[,c("student_id", "city", "drink")]
 ```
 
 ------------------------------------------------------------------------
@@ -479,25 +491,35 @@ cs <- read_csv(here("data", "compustat.csv"))
 cs_b <- read.csv(here("data", "compustat.csv"))
 cs_g <- read_csv2(here("data", "compustat_German_format.csv"))
 
+dim(cs)
 ```
 
 ### Chunk 5.3 · Same file, same data? Compare!
 
 ```{r chunk_5_3}
 ## 1. The identifier gvkey
+head(cs$gvkey, 3) # "001004" "001004"
+head(cs_b$gvkey, 3) # 1004 1004 <- zeros gone!
+head(cs_g$gvkey, 3)
+class(cs$gvkey); class(cs_b$gvkey); class(cs_g$gvkey)
+
 ## 2. Type guessing: readr guesses column types from the first 1,000 rows
-## 3. A safer import: tell R the types instead of letting it guess
-## 4. Do the numbers agree across the imports?
-
-head(cs$gvkey, 2) # "001004" "001004"
-head(cs_b$gvkey, 2) # 1004 1004 <- zeros gone!
 problems(cs) # 94 values set to NA
+unique(problems(cs)$col)
+names(cs)[unique(problems(cs)$col)]
 
+
+## 3. A safer import: tell R the types instead of letting it guess
 cs <- read_csv(
   here("data", "compustat.csv"),
-  col_types = cols(gvkey = "c"), # Force gvkey to be character (keeps leading zeros)
+  col_types = cols(gvkey = col_character()), # Force gvkey to be character (keeps leading zeros)
   guess_max = Inf                # Scan all rows instead of just 1,000
 )
+
+nrow(problems(cs))
+
+## 4. Do the numbers agree across the imports?
+all.equal(sum(cs$at, na.rm = TRUE), sum(cs_g$at, na.rm= TRUE))
 
 ```
 
@@ -508,14 +530,26 @@ cs <- read_csv(
 
 ```{r chunk_5_4}
 ## 1. Size
-## 2. Types
-## 3. Keys: one row per firm-year?
-## 4. Ranges and missing values
-## 5. Known value: Apple's total assets, fiscal year 2014 (in USD millions)
-
 dim(cs)
+## 2. Types
 print(cs)
+## 3. Keys: one row per firm-year?
+nrow(cs)
 n_distinct(cs$gvkey, cs$fyear)
+cs |> count(gvkey, fyear) |> filter(n > 1) |> head()
+table(cs$indfmt) # INDL = industrial service, FS = financial service format
+
+
+
+## 4. Ranges and missing values
+summary(cs$at)
+summary(cs$fyear)
+table(cs$curcd)
+
+## 5. Known value: Apple's total assets, fiscal year 2014 (in USD millions)
+cs |> filter(tic == "AAPL", fyear == 2014) |> select(conm, fyear, at, sale, ni)
+
+
 
 
 
@@ -537,7 +571,12 @@ n_distinct(cs$gvkey, cs$fyear)
 
 ```{r chunk_5_5}
 ## Export: always to output/, never overwrite raw data in data/
+dir.create(here("output"), showWarnings = FALSE)
+write_csv(df_cities, here("output", "student_cities.csv"))
+
 ## Remove objects we no longer need
+rm(cs_b, cs_g)
+
 ## Remove everything (same as the broom icon in the Environment pane)
 ## rm(list = ls())
 
@@ -582,7 +621,7 @@ n_firms <- nrow(cs)
 cat("Number of firms:", n_firms, "\n")
 
 ## (f) Median total assets by fiscal year
-summarize_median(cs, at, by = fyear)
+#summarize_median(cs, at, by = fyear)
 ```
 
 ### Chunk 6.2 · Solution: bugs, fixes and checks
@@ -597,25 +636,12 @@ Write your corrected version below. After every fix, check the result against so
 ## (d) units and currency: Compustat items are in millions of the reporting currency
 ## (e) firms vs. firm-years
 ## (f) an existing function — and an independent implementation as check
+city_info <- df_cities   # reset: drop the buggy columns left over from chunk 6.1
 
-
-## --- KORRIGIERTER CODE (Chunk 6.2) ---
-
-# 1. Korrektes Matching über Namen statt Position (verhindert Positions-Fehler)
-# Wir wandeln die table-Ausgabe in einen named vector oder nutzen einen sauberen merge
-
-# 1. Count students per city
-n_per_city <- table(students$city)
-
-# 2. Turn it into a small lookup data frame
-counts_df <- data.frame(city = names(n_per_city), n_students = as.numeric(n_per_city))
-
-# 3. Merge it safely into city_info (matching by city name)
-city_info <- merge(city_info, counts_df, by = "city", all.x = TRUE)
-
-# 4. Replace any NA counts with 0 (for cities with no students in this class)
+## Tutorial Lösungsvorschlag a):
+city_info$n_students <- as.numeric(n_per_city[city_info$city])
 city_info$n_students[is.na(city_info$n_students)] <- 0
-
+city_info[,c("city", "n_students")]
 
 
 # 2. Skalierung korrigiert: Durch 1e6 (Millionen) statt 1e5 teilen
@@ -627,6 +653,10 @@ german <- subset(city_info, country == "Germany")
 # 4 & 5. Compustat-Einheiten & Unique Firms:
 # sale ist in Millionen USD. 
 avg_sales <- mean(cs$sale, na.rm = TRUE)
+
+cs |> 
+  group_by(curcd) |> 
+  summarise(n=n(), avg_sales_millions= mean(sale, na.rm = TRUE))
 
 # Eindeutige Unternehmen zählen statt Zeilen (Firm-Jahre)
 n_firms <- n_distinct(cs$gvkey)
