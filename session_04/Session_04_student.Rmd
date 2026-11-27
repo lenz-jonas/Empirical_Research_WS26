@@ -67,7 +67,7 @@ print(csr_panel)
 ```
 
 | Variable | Meaning |
-|----|----|
+|--------------------------------------|----------------------------------|
 | `treated` | 1 = firm must publish a CSR report from 2008 (in the paper: index membership) — "NEW" |
 | `post` | 1 = fiscal year 2008 or later — "POST" |
 | `treat_post` | `treated × post`: firm-year actually under the mandate |
@@ -83,7 +83,7 @@ print(csr_panel)
 Three designs you find in almost every accounting paper on a regulation:
 
 | Design | Compares | Regression | Main problem |
-|----|----|----|----|
+|-----------------|------------------|------------------|--------------------|
 | Cross-section | treated vs. other firms after the mandate | `roa ~ treated` | the groups differ anyway |
 | Pre-post | treated firms before vs. after | `roa ~ post` | everything else that changed in time |
 | Difference-in-differences | change of treated vs. change of other firms | `roa ~ treated * post` | trends must be parallel |
@@ -92,10 +92,10 @@ Before running any of them, write down **which effect** you want — the *estima
 
 > The effect of **[treatment]** on **[outcome]** for **[which units]** in **[which period]**, compared with **[which counterfactual]**.
 
-# The effect of the 2008 mandatory CSR disclosure on firm profitability (ROA/ROE) for the firms who must publish such a report [Shanghai corporate governance index, the Shenzhen 100 index, cross-listed and financial firms] in 2008 compared with all other firms who dont have to publish such a report.
-
 **Task A:** Write the estimand of our study in one sentence.
 Is it an ATE (all firms) or an ATT (only the mandated firms)?
+
+The effect of the 2008 CSR disclosure requirement on firm profitability (ROA/ROE) for firm and the shanghai/shenzen corporate government index in 2008-2011m compared with profitablity with the ROA these same firms would have had without the mandate.
 
 ### Chunk 1.1 · Who is treated? (given)
 
@@ -144,7 +144,7 @@ What OLS does, in simple words:
 The assumptions tell you when you can trust the coefficient (assumptions 1, 3, 4) and when you can trust its standard error and p-value (assumptions 2, 5, 6) (Wooldridge 2020, ch. 3; Heiss 2020, ch. 3):
 
 | \# | Assumption | In simple words | In our CSR data |
-|----|----|----|----|
+|-----------------|-----------------|--------------------|--------------------|
 | 1 | Linear in parameters | The model has the right shape. Logs and squares are allowed. | ROA rises with size for small firms and falls for large ones — a straight line misses the hump. |
 | 2 | Random sampling, independent observations | Every observation brings new information. | The same firm appears eight times: high ROA in 2008 → high ROA in 2009. |
 | 3 | No perfect collinearity | Every variable brings something new. | Size and sales move almost together — OLS cannot tell which one matters. |
@@ -159,7 +159,7 @@ Only the research design can make assumption 4 plausible.
 **Checklist — violated, so what?**
 
 | \# | Assumption | Violated → | How to check | What to do |
-|----|----|----|----|----|
+|---------------|---------------|---------------|---------------|---------------|
 | 1 | Linear in parameters | biased fit | residuals vs. fitted: curvature? | logs, squares |
 | 2 | Random sampling, independent observations | standard errors too small | think: panel = same firm repeated | cluster by firm |
 | 3 | No perfect collinearity | coefficient `NA`; huge SEs if nearly collinear | `NA` in output; VIF | drop one variable |
@@ -228,25 +228,13 @@ summary(lm(roa ~ size + log_sales, data = csr_panel))$coefficients
 **Task C:** For each chunk: is the assumption violated here?
 What do you do about it?
 
-Linearity (2.1):
+Linearity (2.1):\
+\
+Homoskedasticity (2.2)
 
-We can see that using size\^2 is more fitting than just normal size.
-Nevertheless that doesnt mean that we dont have a linear combination, as the only prerequisite is that adding different parameters together gives us a model, but not each of the parameters itself must be a linear parameter.
-So i think this is not violated.
-
-Homoskedasticity (2.2):
-
-Given that the sd of the resid decreases from one quartile to another we can assume that we have heteroskedasticity, which in itself is solvable if we use robust standard errors.
-
-Normality (2.3):
-
-residuals are not following a bell curve?
-
-Multicolinearity (2.4):
-
-size and log_sales are quite strongly correlated, which can itself be seen because the inclusion of log_sales makes size unstable.
-Also vif is very large (\> 10).
-Therefore we should only use one of the two.
+Normality (2.3)\
+\
+Multicolinarity (2.4)
 
 ------------------------------------------------------------------------
 
@@ -256,7 +244,7 @@ A **DAG** (directed acyclic graph) writes your assumptions about what causes wha
 It tells you which variables to control for:
 
 | Role | Example here | Control for it? |
-|----|----|----|
+|------------------|------------------------|------------------------------|
 | **Confounder** — causes treatment and outcome | size; governance quality (unobserved) | **Yes** (if you can) |
 | **Mediator** — on the path from treatment to outcome | CSR spending | **No** — removes part of the effect |
 | **Collider** — caused by treatment and outcome | e.g. "included in a sustainability ranking" | **No** — creates bias |
@@ -288,7 +276,7 @@ Why does controlling for size not solve the problem?
 It works if four conditions hold:
 
 | DiD assumption | In simple words | In our setting |
-|----|----|----|
+|------------------------|-------------------------|------------------------|
 | Common (parallel) trends | Without the treatment, both groups would have moved in parallel. | Without the mandate, the ROA of index firms would have fallen as much as that of other firms during the crisis. |
 | Group differences are constant over time | Whatever makes the groups different stays the same. | Index firms are better governed — but not *increasingly* better governed after 2008. |
 | Time shocks hit both groups equally | A shock in a year affects treated and control firms in the same way. | The financial crisis hits index firms and other firms equally hard. |
@@ -347,11 +335,10 @@ $$ROA_{it} = \beta \, NEW_i \times POST_t + \alpha_i + \gamma_t + \varepsilon_{i
 ## fixed effects go after the |
 ## replace ... : m_twfe <- feols(roa ~ treat_post | ..., data = csr_panel)
 ## then: etable(m_twfe, vcov = ~firm_id)
-
-
 m_twfe <- feols(roa ~ post*treated | firm_id + year, data = csr_panel)
 
 etable(m_twfe, vcov = ~firm_id)
+
 ```
 
 ### Chunk 4.4 · Standard errors and a bad control (given)
